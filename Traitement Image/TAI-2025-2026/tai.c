@@ -165,10 +165,47 @@ Image Hist2Im(Matrix Hist, int NbLig)
  * Entrée : histogramme (matrice de int 1 x 256)
  * Sortie : seuil (niveau de gris) obtenu par la méthode d'Otsu
  */
+
+ 
+int Cout (Matrix H,int S){
+  int ** M=MatGetInt(H);
+  int q1=0; int q2=0; int u1 =0; int u2=0;
+  for (int k =0; k <256;k++ ){
+    if (k<S){
+      q1+= M[0][k];
+      u1+=k*M[0][k];
+    } else {
+      q2+=M[0][k]; 
+      u2+=k*M[0][k];
+    }
+  }
+  u1 = u1 / q1;
+  u2 = u2 / q2;
+  int left =0; int right = 0;
+  for (int k =0; k <256;k++ ){
+    if (k<S)
+      left += M[0][k]*((k - u1)*(k- u1));
+    else
+      right += M[0][k]*((k - u2)*(k- u2));
+  }
+  return left+right;
+}
+
+
 unsigned char Otsu(Matrix Hist)
 {
-  
+  int seuil = 1;
+  int min = Cout(Hist,1);
+  for (int i = 2; i< 255; i++){
+    int c = Cout(Hist,i);
+    if (c<min){
+      min = c;
+      seuil =i;
+    }
+  }
+  return seuil;
 }
+
 
 
 /*
