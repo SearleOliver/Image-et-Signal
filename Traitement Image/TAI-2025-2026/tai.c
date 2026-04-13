@@ -5,6 +5,7 @@
 #include <float.h>
 #include "limace.h"
 #include "tai.h"
+#include <limits.h>
 
 #define DEBOGAGE
 
@@ -167,28 +168,32 @@ Image Hist2Im(Matrix Hist, int NbLig)
  */
 
  
-int Cout (Matrix H,int S){
-  int ** M=MatGetInt(H);
-  int q1=0; int q2=0; int u1 =0; int u2=0;
-  for (int k =0; k <256;k++ ){
-    if (k<S){
-      q1+= M[0][k];
-      u1+=k*M[0][k];
-    } else {
-      q2+=M[0][k]; 
-      u2+=k*M[0][k];
+int Cout(Matrix H, int S) {
+  int **M = MatGetInt(H);
+  int q1 = 0, q2 = 0, u1 = 0, u2 = 0;
+
+  for (int k = 0; k < 256; k++) {
+    if (k < S) {
+      q1 += M[0][k];
+      u1 += k * M[0][k];
+    }else { 
+      q2 += M[0][k];
+      u2 += k * M[0][k];
     }
   }
+
+  if (q1 == 0 || q2 == 0) return INT_MAX;
   u1 = u1 / q1;
   u2 = u2 / q2;
-  int left =0; int right = 0;
-  for (int k =0; k <256;k++ ){
-    if (k<S)
-      left += M[0][k]*((k - u1)*(k- u1));
-    else
-      right += M[0][k]*((k - u2)*(k- u2));
+
+  int left = 0, right = 0;
+  for (int k = 0; k < 256; k++) {
+    if (k < S) 
+      left  += M[0][k] * ((k - u1) * (k - u1));
+    else 
+      right += M[0][k] * ((k - u2) * (k - u2));
   }
-  return left+right;
+  return left + right;
 }
 
 
@@ -214,7 +219,15 @@ unsigned char Otsu(Matrix Hist){
  */
 Matrix Hist2CumHist(Matrix Hist)
 {
-  AFAIRE(NULL);
+  Matrix mat =  MatAlloc(Int,1,256);
+  int NbCol = MatNbCol(Hist);
+  int ** M=MatGetInt(mat);
+  int ** H=MatGetInt(Hist);
+  M[0][0]=H[0][0];
+  for (int i =1; i<NbCol;i++){
+    M[0][i]= M[0][i-1]+H[0][i];
+  }
+  return mat;
 }
 
 
@@ -226,7 +239,18 @@ Matrix Hist2CumHist(Matrix Hist)
  */
 Image AppLUT(Image Im, Matrix LUT)
 {
-  AFAIRE(NULL);
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  int ** L=MatGetInt(LUT);
+  Image App = ImAlloc(GrayLevel,NbRow,NbCol);
+  unsigned char** A = ImGetI(App);
+  unsigned char** S = ImGetI(Im);
+  for (int i =0;i<NbRow;i++){
+    for (int j=0; j<NbCol;j++){
+      A[i][j]=L[0][S[i][j]];
+    }
+  }
+  return App;
 }
 
 
@@ -240,7 +264,24 @@ Image AppLUT(Image Im, Matrix LUT)
  */
 Matrix HistSpecif(Matrix CumHist, Matrix DesCumHist)
 {
-  AFAIRE(NULL);
+  Matrix mat =  MatAlloc(Int,1,256);
+  int NbCol = MatNbCol(CumHist);
+  int ** M=MatGetInt(mat);
+  int ** I=MatGetInt(CumHist);
+  int ** D=MatGetInt(DesCumHist);
+  for (int i =0; i<NbCol;i++){
+    int niv = 0;
+    int best_diff = abs(I[0][i]-D[0][0]);
+    for (int j=1; j<NbCol; j++){
+      int diff = abs(I[0][i]-D[0][j]);
+      if (diff <best_diff){
+        niv = j;
+        best_diff = diff;
+      }
+    }
+    M[0][i]=niv; 
+  }
+  return mat;  
 }
 
 
@@ -312,6 +353,32 @@ int NotValidTernSE(Matrix StructuringElement)
  */
 Image Thinning(Image Im, Matrix StructuringElement)
 {
-  AFAIRE(NULL);
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  int MRow = (MatNbRow(StructuringElement)-1)/2;
+  int MCol = (MatNbCol(StructuringElement)-1)/2;
+  int ** E = MatGetInt(StructuringElement);
+
+  unsigned char** I = ImGetI(Im);
+  Image Copy = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **C = ImGetI(Copy);
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      C[i][j] = I[i][j];
+
+  for (int i = 1 ; i < NbRow-1; i++){
+    for (int j = 1; j < NbCol-1 ; j++){
+      int app = 1;
+      for (int ie = -MRow; ie <= MRow; ie++){
+        for (int je = -MCol; je <= MCol; je++){
+          if(E[ie+MRow][je+MCol]!=2){
+            app = app && I[i+ie][j+je]==E[ie+MRow][je+MCol];
+          }
+        }
+      }
+      C[i][j] = app ? 0 : I[i][j];
+    }
+  }
+  return Copy;
 }
 
