@@ -192,8 +192,7 @@ int Cout (Matrix H,int S){
 }
 
 
-unsigned char Otsu(Matrix Hist)
-{
+unsigned char Otsu(Matrix Hist){
   int seuil = 1;
   int min = Cout(Hist,1);
   for (int i = 2; i< 255; i++){
