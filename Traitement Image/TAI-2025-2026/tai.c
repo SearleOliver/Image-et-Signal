@@ -382,3 +382,241 @@ Image Thinning(Image Im, Matrix StructuringElement)
   return Copy;
 }
 
+
+/*
+ * Erosion d'une image binaire
+ * Entrées : image binaire et élément structurant (0, 1, 2="peu importe")
+ * Sortie : image binaire érodée
+ */
+Image Erosion(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  int MRow = (MatNbRow(StructuringElement)-1)/2;
+  int MCol = (MatNbCol(StructuringElement)-1)/2;
+  int **E = MatGetInt(StructuringElement);
+  unsigned char **I = ImGetI(Im);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **O = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      O[i][j] = I[i][j];
+
+  for (int i = MRow; i < NbRow-MRow; i++) {
+    for (int j = MCol; j < NbCol-MCol; j++) {
+      int match = 1;
+      for (int ie = -MRow; ie <= MRow; ie++) {
+        for (int je = -MCol; je <= MCol; je++) {
+          if (E[ie+MRow][je+MCol] != 2) {
+            // pixel must be 1 where SE is 1
+            match = match && (I[i+ie][j+je] == E[ie+MRow][je+MCol]);
+          }
+        }
+      }
+      O[i][j] = match ? 1 : 0;
+    }
+  }
+  return Out;
+}
+
+/*
+ * Dilatation d'une image binaire
+ * Entrées : image binaire et élément structurant (0, 1, 2="peu importe")
+ * Sortie : image binaire dilatée
+ */
+Image Dilatation(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  int MRow = (MatNbRow(StructuringElement)-1)/2;
+  int MCol = (MatNbCol(StructuringElement)-1)/2;
+  int **E = MatGetInt(StructuringElement);
+  unsigned char **I = ImGetI(Im);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **O = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      O[i][j] = I[i][j];
+
+  for (int i = MRow; i < NbRow-MRow; i++) {
+    for (int j = MCol; j < NbCol-MCol; j++) {
+      int match = 0;
+      for (int ie = -MRow; ie <= MRow; ie++) {
+        for (int je = -MCol; je <= MCol; je++) {
+          if (E[ie+MRow][je+MCol] == 1) {
+            // at least one pixel under SE is 1
+            match = match || (I[i+ie][j+je] == 1);
+          }
+        }
+      }
+      O[i][j] = match ? 1 : 0;
+    }
+  }
+  return Out;
+}
+
+/*
+ * Ouverture : érosion suivie d'une dilatation
+ */
+Image Ouverture(Image Im, Matrix StructuringElement)
+{
+  Image eroded = Erosion(Im, StructuringElement);
+  Image opened = Dilatation(eroded, StructuringElement);
+  return opened;
+}
+
+/*
+ * Fermeture : dilatation suivie d'une érosion
+ */
+Image Fermeture(Image Im, Matrix StructuringElement)
+{
+  Image dilated = Dilatation(Im, StructuringElement);
+  Image closed  = Erosion(dilated, StructuringElement);
+  return closed;
+}
+
+/*
+ * Transformation "Tout ou Rien" (Hit-or-Miss)
+ * Marque les pixels où le SE correspond exactement (1→1, 0→0, 2=peu importe)
+ */
+Image ToutOuRien(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  int MRow = (MatNbRow(StructuringElement)-1)/2;
+  int MCol = (MatNbCol(StructuringElement)-1)/2;
+  int **E = MatGetInt(StructuringElement);
+  unsigned char **I = ImGetI(Im);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **O = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      O[i][j] = 0;
+
+  for (int i = MRow; i < NbRow-MRow; i++) {
+    for (int j = MCol; j < NbCol-MCol; j++) {
+      int match = 1;
+      for (int ie = -MRow; ie <= MRow; ie++) {
+        for (int je = -MCol; je <= MCol; je++) {
+          if (E[ie+MRow][je+MCol] != 2) {
+            match = match && (I[i+ie][j+je] == E[ie+MRow][je+MCol]);
+          }
+        }
+      }
+      O[i][j] = match ? 1 : 0;
+    }
+  }
+  return Out;
+}
+
+/*
+ * Top-hat blanc : Im - Ouverture(Im, SE)
+ * Détecte les petites régions blanches / saillances lumineuses
+ */
+Image TopHatBlanc(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  unsigned char **I = ImGetI(Im);
+
+  Image opened = Ouverture(Im, StructuringElement);
+  unsigned char **O = ImGetI(opened);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **R = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      R[i][j] = I[i][j] && !O[i][j]; // Im - Opening
+
+  return Out;
+}
+
+/*
+ * Top-hat noir : Fermeture(Im, SE) - Im
+ * Détecte les petites régions noires / trous sombres
+ */
+Image TopHatNoir(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  unsigned char **I = ImGetI(Im);
+
+  Image closed = Fermeture(Im, StructuringElement);
+  unsigned char **C = ImGetI(closed);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **R = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      R[i][j] = C[i][j] && !I[i][j]; // Closing - Im
+
+  return Out;
+}
+
+/*
+ * Épaississement : inverse du thinning
+ * Ajoute des pixels là où le SE correspond (Tout ou Rien → union avec Im)
+ */
+Image Epaississement(Image Im, Matrix StructuringElement)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  unsigned char **I = ImGetI(Im);
+
+  Image tor = ToutOuRien(Im, StructuringElement);
+  unsigned char **T = ImGetI(tor);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **O = ImGetI(Out);
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      O[i][j] = I[i][j] || T[i][j]; // union: add matched pixels
+
+  return Out;
+}
+
+/*
+ * Détection de contours
+ * Un pixel est un contour s'il est à 1 et a au moins un voisin à 0 (4-connexité)
+ * Equivalent à : Im - Erosion(Im, SE_croix)
+ */
+Image Contour(Image Im)
+{
+  int NbRow = ImNbRow(Im);
+  int NbCol = ImNbCol(Im);
+  unsigned char **I = ImGetI(Im);
+
+  Image Out = ImAlloc(BitMap, NbRow, NbCol);
+  unsigned char **O = ImGetI(Out);
+
+  // 4-connectivity neighbors
+  int di[] = {-1, 1,  0, 0};
+  int dj[] = { 0, 0, -1, 1};
+
+  for (int i = 0; i < NbRow; i++)
+    for (int j = 0; j < NbCol; j++)
+      O[i][j] = 0;
+
+  for (int i = 1; i < NbRow-1; i++) {
+    for (int j = 1; j < NbCol-1; j++) {
+      if (I[i][j] == 1) {
+        int border = 0;
+        for (int d = 0; d < 4; d++) {
+          if (I[i+di[d]][j+dj[d]] == 0)
+            border = 1;
+        }
+        O[i][j] = border ? 1 : 0;
+      }
+    }
+  }
+  return Out;
+}
