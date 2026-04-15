@@ -409,9 +409,8 @@ Image Erosion(Image Im, Matrix StructuringElement)
       int match = 1;
       for (int ie = -MRow; ie <= MRow; ie++) {
         for (int je = -MCol; je <= MCol; je++) {
-          if (E[ie+MRow][je+MCol] != 2) {
-            // pixel must be 1 where SE is 1
-            match = match && (I[i+ie][j+je] == E[ie+MRow][je+MCol]);
+          if (E[ie+MRow][je+MCol] == 1) {  // only check 1s, ignore 0s and 2s
+            match = match && (I[i+ie][j+je] == 1);
           }
         }
       }
